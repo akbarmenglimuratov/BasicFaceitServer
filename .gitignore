@@ -1,0 +1,9 @@
+bin/
+obj/
+compiled/
+*.sln
+.idea
+.github
+.vscode
+configs.json
+Folder.DotSettings.user
