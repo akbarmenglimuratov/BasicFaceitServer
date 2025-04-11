@@ -62,26 +62,25 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
 
         return playerList;
     }
-    
+
     public CsTeam GetPlayerTeam(CCSPlayerController player)
     {
-        logger.LogInformation("[Helper][GetPlayerTeam] - Get player team (CT, T or Spectator)");
+        logger.LogInformation("[Helper][GetPlayerTeam] - Get client team (CT, T or Spectator)");
         var configs = game.Config;
         var playerIp = player.IpAddress?.Split(":")[0];
 
-        List<int> liveCabins = [configs.LiveGames.Team1.CabinId, configs.LiveGames.Team2.CabinId];
+        LiveTeam[] liveTeams = [configs.LiveGames.Team1, configs.LiveGames.Team2];
 
-        foreach (var cabin in configs.Cabins)
-        {
-            if (!liveCabins.Contains(cabin.Id)) continue;
+        var cabinId = configs.Cabins.First(c =>
+            c.IsActive
+            && c.IpAddresses.Contains(playerIp)
+        ).Id;
 
-            if (cabin.IsActive && cabin.IpAddresses.Contains(playerIp))
-            {
-                return cabin.JoinTeam == "CT" ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
-            }
-        }
+        var teamName = liveTeams.FirstOrDefault(t => t.CabinId == cabinId)?.DefaultTeam;
 
-        return CsTeam.Spectator;
+        if (teamName == null) return CsTeam.Spectator;
+
+        return teamName == "CT" ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
     }
 
     public void SetTeamDataFromConfigs()
@@ -153,26 +152,31 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
 
     public bool CheckIpInParticipantsList(string playerIpAddress)
     {
-        logger.LogInformation("[Helper][CheckIpInParticipantsList] - Check if player in participants list");
+        logger.LogInformation("[Helper][CheckIpInParticipantsList] - Check if player in participants list - {ipAddress}", playerIpAddress);
         if (playerIpAddress == "") return false;
 
         var configs = game.Config;
         
         var playerIp = playerIpAddress.Split(":")[0];
 
-        return configs.Cabins.Any(c =>
+        var isParticipant = configs.Cabins.Any(c =>
             (c.Id == configs.LiveGames.Team1.CabinId || c.Id == configs.LiveGames.Team2.CabinId)
             && c.IpAddresses.Contains(playerIp)
         );
+        logger.LogInformation($"[Helper][CheckIpInParticipantsList] - The participant - {isParticipant}");
+        return isParticipant;
     }
 
     public void RemovePlayerWeapons(CCSPlayerController player)
     {
         logger.LogInformation("[Helper][RemovePlayerWeapons] - Remove player weapon and give only knife");
         player.RemoveWeapons();
-        var giveNamedItem = player.Team == CsTeam.CounterTerrorist 
-            ? player.GiveNamedItem("weapon_knife")
-            : player.GiveNamedItem("weapon_knife_t");
+
+        var knifeDesignName = player.Team == CsTeam.CounterTerrorist 
+            ? "weapon_knife"
+            : "weapon_knife_t";
+
+        player.GiveNamedItem(knifeDesignName);
         player.GiveNamedItem("item_kevlar");
             
         var playerMoney = player.InGameMoneyServices;

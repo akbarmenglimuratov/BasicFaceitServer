@@ -17,13 +17,13 @@ public class Teams
 
 public class State
 {
-    public bool PreKnifeWarmup { get; set; } = false;
+    public bool PreKnifeWarmup { get; set; }
 
-    public bool PostKnifeWarmup { get; set; } = false;
+    public bool PostKnifeWarmup { get; set; }
 
-    public bool KnifeRound { get; set; } = false;
+    public bool KnifeRound { get; set; }
 
-    public bool MatchLive { get; set; } = false;
+    public bool MatchLive { get; set; }
     
     public CsTeam KnifeRoundWinner { get; set; } = CsTeam.None;
 
@@ -34,11 +34,11 @@ public class State
 
 public class Player
 {
-    public ulong? SteamId { get; set; }
+    public ulong SteamId { get; set; }
     
-    public string? IpAddress { get; set; } = "";
+    public string? IpAddress { get; set; }
 
-    public int? Slot { get; set; }
+    public int Slot { get; set; }
 
     public PlayerConnectedState ConnectionStatus { get; set; } = PlayerConnectedState.PlayerNeverConnected;
     

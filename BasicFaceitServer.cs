@@ -4,7 +4,6 @@ using Microsoft.Extensions.Logging;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Entities.Constants;
-using BasicFaceitServer.Config;
 
 namespace BasicFaceitServer;
 
@@ -15,33 +14,33 @@ public class BasicFaceitServer : BasePlugin
     public override string ModuleAuthor => "Akbar Menglimuratov";
     public override string ModuleDescription => "Faceit server";
 
-    private static ILogger<BasicFaceitServer> _logger;
-    
-    // public BasicFaceitServer Game { get; private set; } = new(_logger);
+    private readonly ILogger<BasicFaceitServer> _logger;
     
     public State States = new();
 
     private readonly Players _players = new();
-    
+
     public MyConfigs Config { get; set; } = new();
 
     private CCSGameRules? _gameRules;
     
-    
     private readonly Helper _helper;
+
+    private readonly ConfigManager _configManager;
 
     public BasicFaceitServer(ILogger<BasicFaceitServer> logger)
     {
         _logger = logger;
         _helper = new Helper(this, logger);
+        _configManager = new ConfigManager(logger);
     }
     
     public override void Load(bool hotReload)
     {
-        Logger.LogInformation("[Load] Start loading configs from config file");
-        Config = ConfigManager.GetConfig(ModuleDirectory);
+        _logger.LogInformation("[Load] Start loading configs from config file");
+        Config = _configManager.GetConfig(ModuleDirectory);
         
-        ConfigManager.ValidateConfigs();
+        _configManager.ValidateConfigs();
         _helper.SetTeamDataFromConfigs();
 
         // Listeners
@@ -80,20 +79,18 @@ public class BasicFaceitServer : BasePlugin
     
     private void OnClientPutInServer(int playerSlot)
     {
-        Logger.LogInformation($"[OnClientPutInServer]: Start");
+        _logger.LogInformation($"[OnClientPutInServer]: Start");
         
         var player = _helper.GetPlayerBySlotId(playerSlot);
         if (player is null || !player.IsValid || player.IsBot) {
-            Logger.LogInformation($"[OnClientPutInServer]: {player?.IpAddress} - Player is null or bot");
+            _logger.LogInformation($"[OnClientPutInServer]: {player?.IpAddress} - Player is null or bot");
             return;
         }
-        
-        Logger.LogInformation($"""
-            [OnClientPutInServer]: Player slot - {player.Slot}
-            [OnClientPutInServer]: Player SteamID - {player.SteamID}
-            [OnClientPutInServer]: Player IP - {player.IpAddress}
-            [OnClientPutInServer]: Player connection status - {player.Connected.ToString()}
-        """);
+
+        _logger.LogInformation($"[OnClientPutInServer]: Player slot - {player.Slot}");
+        _logger.LogInformation($"[OnClientPutInServer]: Player SteamID - {player.SteamID}");
+        _logger.LogInformation($"[OnClientPutInServer]: Player IP - {player.IpAddress}");
+        _logger.LogInformation($"[OnClientPutInServer]: Player connection status - {player.Connected.ToString()}");
         
         if (player.IpAddress is null) return;
 
@@ -116,45 +113,43 @@ public class BasicFaceitServer : BasePlugin
 
         _players.Slots[player.SteamID] = pSlot;
 
-        Logger.LogInformation($"[OnClientPutInServer]: End");
+        _logger.LogInformation($"[OnClientPutInServer]: End");
     }
     
     private void OnClientDisconnect(int playerSlot)
     {
-        Logger.LogInformation($"[OnClientPutInServer]: Start");
+        _logger.LogInformation($"[OnClientPutInServer]: Start");
         
         var player = _helper.GetPlayerBySlotId(playerSlot);
         if (player is null || !player.IsValid || player.IsBot) {
-            Logger.LogInformation($"[OnClientDisconnect]: {player?.IpAddress} - Player is null or bot");
+            _logger.LogInformation($"[OnClientDisconnect]: {player?.IpAddress} - Player is null or bot");
             return;
         }
-        
-        Logger.LogInformation($"""
-            [OnClientDisconnect]: Player slot - {player.Slot}
-            [OnClientDisconnect]: Player SteamID - {player.SteamID}
-            [OnClientDisconnect]: Player IP - {player.IpAddress}
-            [OnClientDisconnect]: Player connection status - {player.Connected.ToString()}
-        """);
+
+        _logger.LogInformation("[OnClientDisconnect]: Player slot - {playerSlot}", player.Slot);
+        _logger.LogInformation("[OnClientDisconnect]: Player SteamID - {playerSteamID}", player.SteamID);
+        _logger.LogInformation("[OnClientDisconnect]: Player IP - {playerIpAddress}", player.IpAddress);
+        _logger.LogInformation("[OnClientDisconnect]: Player connection status - {playerConnectionStatus}", player.Connected.ToString());
 
         if (_players.Slots.TryGetValue(player.SteamID, out var slot))
             slot.ConnectionStatus = PlayerConnectedState.PlayerDisconnecting;
         
-        Logger.LogInformation($"[OnClientDisconnect]: End");
+        _logger.LogInformation($"[OnClientDisconnect]: End");
     }
     
     private HookResult OnPlayerConnectFull(EventPlayerConnectFull @event, GameEventInfo info)
     {
-        Logger.LogInformation($"[{@event.EventName}]: Start");
+        _logger.LogInformation($"[{@event.EventName}]: Start");
 
         var player = @event.Userid;
         if (player is null || !player.IsValid || player.IsBot) {
-            Logger.LogInformation($"[{@event.EventName}]: {player?.IpAddress} - Client is null or bot");
+            _logger.LogInformation($"[{@event.EventName}]: {player?.IpAddress} - Client is null or bot");
             return HookResult.Continue;
         }
         
         if (!_players.Slots.TryGetValue(player.SteamID, out var pSlot)) {
             player.ChangeTeam(CsTeam.Spectator);
-            Logger.LogInformation($"[{@event.EventName}]: {player.IpAddress} - Client team {CsTeam.Spectator}");
+            _logger.LogInformation($"[{@event.EventName}]: {player.IpAddress} - Client team {CsTeam.Spectator}");
             return HookResult.Handled;
         }
 
@@ -162,7 +157,7 @@ public class BasicFaceitServer : BasePlugin
             pSlot.Team = _helper.GetPlayerTeam(player);
         }
         
-        Logger.LogInformation($"[{@event.EventName}]: {player.IpAddress} - Client team {pSlot.Team}");
+        _logger.LogInformation($"[{@event.EventName}]: {player.IpAddress} - Client team {pSlot.Team}");
         player.ChangeTeam(pSlot.Team);
         pSlot.ConnectionStatus = PlayerConnectedState.PlayerConnected;
         
@@ -186,7 +181,7 @@ public class BasicFaceitServer : BasePlugin
         }
         
         
-        Logger.LogInformation($"[{@event.EventName}]: {player.IpAddress} - First player connected");
+        _logger.LogInformation($"[{@event.EventName}]: {player.IpAddress} - First player connected");
         
         States.PreKnifeWarmup = true;
         
@@ -197,18 +192,18 @@ public class BasicFaceitServer : BasePlugin
         player.PrintToChat(_helper.GetColoredText("РАЗМИНКА!!!"));
         player.PrintToChat(_helper.GetColoredText("РАЗМИНКА!!!"));
 
-        Logger.LogInformation($"[{@event.EventName}]: Finish");
+        _logger.LogInformation($"[{@event.EventName}]: Finish");
 
         return HookResult.Continue;
     }
 
     private HookResult OnPlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
     {
-        Logger.LogInformation($"[{@event.EventName}]: Start");
+        _logger.LogInformation($"[{@event.EventName}]: Start");
 
         var player = @event.Userid;
         if (player is null || !player.IsValid || player.IsBot) {
-            Logger.LogInformation($"[{@event.EventName}]: {player?.IpAddress} - Client is null or bot");
+            _logger.LogInformation($"[{@event.EventName}]: {player?.IpAddress} - Client is null or bot");
             return HookResult.Continue;
         }
         
@@ -218,14 +213,14 @@ public class BasicFaceitServer : BasePlugin
         
         pSlot.ConnectionStatus = PlayerConnectedState.PlayerDisconnected;
 
-        Logger.LogInformation($"[{@event.EventName}]: Finish");
+        _logger.LogInformation($"[{@event.EventName}]: Finish");
 
         return HookResult.Continue;
     }
     
     private HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
     {
-        Logger.LogInformation($"[{@event.EventName}]: Start");
+        _logger.LogInformation($"[{@event.EventName}]: Start");
 
         if (States.MatchLive) return HookResult.Continue;
 
@@ -235,7 +230,7 @@ public class BasicFaceitServer : BasePlugin
         if (_gameRules is null) return HookResult.Continue;
         
         if (States.KnifeRound) {
-            Logger.LogInformation($"[{@event.EventName}]: Knife round start. Skip intro and leave only knife");
+            _logger.LogInformation($"[{@event.EventName}]: Knife round started. Skip intro and leave only knife");
             _gameRules.CTTeamIntroVariant = -1;
             _gameRules.TTeamIntroVariant = -1;
             
@@ -244,17 +239,17 @@ public class BasicFaceitServer : BasePlugin
 
             Server.PrintToChatAll(_helper.GetColoredText(("Пышақ роунды басланды")));
         } else if (States.MatchLive && players.Count < Config.MinPlayerToStart) {
-            Logger.LogInformation($"[{@event.EventName}]: Players ({players.Count}) count is below 10. Pause the match");
+            _logger.LogInformation($"[{@event.EventName}]: Players ({players.Count}) count is below 10. Pause the match");
             Server.ExecuteCommand("mp_pause_match;");
         }
 
-        Logger.LogInformation($"[{@event.EventName}]: Finish");
+        _logger.LogInformation($"[{@event.EventName}]: Finish");
         return HookResult.Continue;
     }
 
     private HookResult OnRoundEnd(EventRoundEnd @event, GameEventInfo info)
     {
-        Logger.LogInformation($"[{@event.EventName}]: Start");
+        _logger.LogInformation($"[{@event.EventName}]: Start");
         if (States.MatchLive) return HookResult.Continue;
         
         if (States.KnifeRound) {
@@ -265,13 +260,13 @@ public class BasicFaceitServer : BasePlugin
                 ? CsTeam.CounterTerrorist
                 : CsTeam.Terrorist;
             
-            Logger.LogInformation($"[{@event.EventName}]: Define knife round winner: {States.KnifeRoundWinner}");
-            Logger.LogInformation($"[{@event.EventName}]: Start short warmup period");
+            _logger.LogInformation($"[{@event.EventName}]: Define knife round winner: {States.KnifeRoundWinner}");
+            _logger.LogInformation($"[{@event.EventName}]: Start short warmup period");
             
             AddTimer(3.0f, () => { Server.ExecuteCommand($"mp_warmuptime {Config.PostWarmupTime}; mp_warmup_start;");});
         }
 
-        Logger.LogInformation($"[{@event.EventName}]: Finish");
+        _logger.LogInformation($"[{@event.EventName}]: Finish");
         return HookResult.Continue;
     }
 
@@ -279,17 +274,22 @@ public class BasicFaceitServer : BasePlugin
     {
         if (!States.PostKnifeWarmup) return HookResult.Continue;
         
-        Logger.LogInformation($"[{@event.EventName}]: Post knife warmup period started");
+        _logger.LogInformation($"[{@event.EventName}]: Post knife warmup period started");
 
         var teamName1 = States.Teams.Team1.Name;
         var teamName2 = States.Teams.Team2.Name;
         var winnerTeamName = States.KnifeRoundWinner == CsTeam.CounterTerrorist
             ? teamName1
             : teamName2;
+
+        _logger.LogInformation($"[{@event.EventName}]: Team name 1 - {teamName1}");
+        _logger.LogInformation($"[{@event.EventName}]: Team name 2 - {teamName2}");
+        _logger.LogInformation($"[{@event.EventName}]: Winner team name - {winnerTeamName}");
+
         Server.PrintToChatAll(_helper.GetColoredText($"{{green}}{winnerTeamName} {{white}}тəрепти таңлаң"));
         Server.PrintToChatAll(_helper.GetColoredText("!ct ямаса !t командасын жазың"));
             
-        Logger.LogInformation($"[{@event.EventName}]: Finish");
+        _logger.LogInformation($"[{@event.EventName}]: Finish");
         return HookResult.Continue;
     }
 
@@ -299,20 +299,20 @@ public class BasicFaceitServer : BasePlugin
         
         if (States.PreKnifeWarmup)
         {
-            Logger.LogInformation($"[{@event.EventName}]: Pre knife warmup period ended");
+            _logger.LogInformation($"[{@event.EventName}]: Pre knife warmup period ended");
             
             States.PreKnifeWarmup = false;
             States.KnifeRound = true;
 
             if (players.Count >= Config.MinPlayerToStart) return HookResult.Continue;
             
-            Logger.LogInformation($"[{@event.EventName}]: Players ({players.Count}) count is below {Config.MinPlayerToStart}");
-            Logger.LogInformation($"[{@event.EventName}]: Pause match before knife round");
+            _logger.LogInformation($"[{@event.EventName}]: Players ({players.Count}) count is below {Config.MinPlayerToStart}");
+            _logger.LogInformation($"[{@event.EventName}]: Pause match before knife round");
             Server.ExecuteCommand($"mp_pause_match");
         }
         else if (States.PostKnifeWarmup)
         {
-            Logger.LogInformation($"[{@event.EventName}]: Post knife warmup period ended");
+            _logger.LogInformation($"[{@event.EventName}]: Post knife warmup period ended");
             States.PostKnifeWarmup = false;
             States.MatchLive = true;
         }
@@ -322,13 +322,13 @@ public class BasicFaceitServer : BasePlugin
     
     private HookResult OnRoundAnnounceMatchStart(EventRoundAnnounceMatchStart  @event, GameEventInfo info)
     {
-        Logger.LogInformation($"[{@event.EventName}]: Start");
+        _logger.LogInformation($"[{@event.EventName}]: Start");
         if (!States.MatchLive) return HookResult.Continue;
         
-        Logger.LogInformation($"[{@event.EventName}]: Print Good luck message");
+        _logger.LogInformation($"[{@event.EventName}]: Print Good luck message");
         Server.PrintToChatAll(_helper.GetColoredText("Ҳаммеге аўмет!!!"));
         
-        Logger.LogInformation($"[{@event.EventName}]: End");
+        _logger.LogInformation($"[{@event.EventName}]: End");
         return HookResult.Continue;
     }
 
@@ -348,14 +348,14 @@ public class BasicFaceitServer : BasePlugin
     
     private void OnCTCommand(CCSPlayerController? player, CommandInfo command)
     {
-        Logger.LogInformation($"On command execute: !ct - Start");
+        _logger.LogInformation($"On command execute: !ct - Start");
         if (States.MatchLive) return;
         
         if (player == null || !player.IsValid) return;
 
         if (player.Team != States.KnifeRoundWinner || player.Team == CsTeam.Spectator) return;
 
-        Logger.LogInformation($"On command execute: !ct - Player team: {player.Team}");
+        _logger.LogInformation($"On command execute: !ct - Player team: {player.Team}");
         
         _gameRules = _helper.GetGameRules();
         if (_gameRules is null) return;
@@ -366,22 +366,22 @@ public class BasicFaceitServer : BasePlugin
         States.MatchLive = true;
         States.PostKnifeWarmup = false;
         
-        Logger.LogInformation($"On command execute: !ct - Exec gamemode_competitive, restart game (1 sec)");
+        _logger.LogInformation($"On command execute: !ct - Exec gamemode_competitive, restart game (1 sec)");
         Server.ExecuteCommand("exec gamemode_competitive; mp_restartgame 1;");
 
-        Logger.LogInformation($"On command execute: !ct - End");
+        _logger.LogInformation($"On command execute: !ct - End");
     }
     
     private void OnTCommand(CCSPlayerController? player, CommandInfo command)
     {
-        Logger.LogInformation($"On command execute: !t - Start");
+        _logger.LogInformation($"On command execute: !t - Start");
         if (States.MatchLive) return;
-         
+
         if (player == null || !player.IsValid) return;
 
         if (player.Team != States.KnifeRoundWinner || player.Team == CsTeam.Spectator) return;
 
-        Logger.LogInformation($"On command execute: !t - Player team: {player.Team}");
+        _logger.LogInformation($"On command execute: !t - Player team: {player.Team}");
 
         _gameRules = _helper.GetGameRules();
         if (_gameRules is null) return;
@@ -392,10 +392,10 @@ public class BasicFaceitServer : BasePlugin
         States.MatchLive = true;
         States.PostKnifeWarmup = false;
 
-        Logger.LogInformation($"On command execute: !t - Exec gamemode_competitive, restart game (1 sec)");
+        _logger.LogInformation($"On command execute: !t - Exec gamemode_competitive, restart game (1 sec)");
         Server.ExecuteCommand("exec gamemode_competitive; mp_restartgame 1;");
 
-        Logger.LogInformation($"On command execute: !t - End");
+        _logger.LogInformation($"On command execute: !t - End");
     }
 
     private void OnClearStateCommand(CCSPlayerController? player, CommandInfo command)
@@ -446,6 +446,8 @@ public class BasicFaceitServer : BasePlugin
     private void OnKnifeRoundEnd(CCSPlayerController? player, CommandInfo command)
     {
         _gameRules = _helper.GetGameRules();
+        if (_gameRules is null) return;
+
         var cmdArg = command.GetArg(1);
         var reason = cmdArg switch
         {

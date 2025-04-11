@@ -1,7 +1,7 @@
 using System.Net;
 using System.Text.Json.Serialization;
 
-namespace BasicFaceitServer.Config;
+namespace BasicFaceitServer;
 
 public class TournamentData
 {
@@ -12,46 +12,31 @@ public class TournamentData
 
 }
 
-public class Team
+public class Team(int id, string name)
 {
-    [JsonPropertyName("id")] public int Id { get; set; } = 1;
-    [JsonPropertyName("name")] public string Name { get; set; } = "Any";
-
-    public Team(int id, string name)
-    {
-        Id = id;
-        Name = name;
-    }
+    [JsonPropertyName("id")] public int Id { get; set; } = id;
+    [JsonPropertyName("name")] public string Name { get; set; } = name;
 }
 
-public class Cabin
+public class Cabin(int id, string name, bool isActive, string[] ipAddresses)
 {
-    [JsonPropertyName("id")] public int Id { get; set; } = 1;
-    [JsonPropertyName("name")] public string Name { get; set; } = "VIP";
-    [JsonPropertyName("is_active")] public bool IsActive { get; set; } = true;
-    [JsonPropertyName("join_team")] public string JoinTeam { get; set; } = "CT";
-    [JsonPropertyName("ip_addresses")] public string[] IpAddresses { get; set; } = [
-        IPAddress.Any.ToString(),
-        IPAddress.Any.ToString()
-    ];
+    [JsonPropertyName("id")] public int Id { get; set; } = id;
+    [JsonPropertyName("name")] public string Name { get; set; } = name;
+    [JsonPropertyName("is_active")] public bool IsActive { get; set; } = isActive;
+    [JsonPropertyName("ip_addresses")] public string[] IpAddresses { get; set; } = ipAddresses;
 }
 
-public class LiveTeam
+public class LiveTeam(int id, int cabinId, string defaultTeam)
 {
-    [JsonPropertyName("id")] public int Id { get; set; } = 1;
-    [JsonPropertyName("cabin_id")] public int CabinId { get; set; } = 1;
-
-    public LiveTeam(int id, int cabinId)
-    {
-        Id = id;
-        CabinId = cabinId;
-    }
+    [JsonPropertyName("id")] public int Id { get; set; } = id;
+    [JsonPropertyName("cabin_id")] public int CabinId { get; set; } = cabinId;
+    [JsonPropertyName("default_team")] public string DefaultTeam { get; set; } = defaultTeam;
 }
 
 public class LiveGameTeams
 {
-    [JsonPropertyName("team_1")] public LiveTeam Team1 { get; set; } = new(1, 1);
-    [JsonPropertyName("team_2")] public LiveTeam Team2 { get; set; } = new(2, 2);
+    [JsonPropertyName("team_1")] public LiveTeam Team1 { get; set; } = new(1, 1, "CT");
+    [JsonPropertyName("team_2")] public LiveTeam Team2 { get; set; } = new(2, 2, "T");
 }
 
 public class MyConfigs
@@ -62,7 +47,7 @@ public class MyConfigs
         new(2, "NaVi")
     ];
     [JsonPropertyName("cabins")] public Cabin[] Cabins { get; set; } = [
-        new()
+        new Cabin(1, "VIP1", true, [IPAddress.Any.ToString(), IPAddress.Any.ToString()])
     ];
     [JsonPropertyName("live_games")] public LiveGameTeams LiveGames { get; set; } = new();
     [JsonPropertyName("pre_warmup_time")] public int PreWarmupTime { get; set; } = 420;
