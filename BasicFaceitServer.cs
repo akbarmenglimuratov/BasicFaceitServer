@@ -59,6 +59,8 @@ public class BasicFaceitServer : BasePlugin
         RegisterEventHandler<EventRoundAnnounceMatchStart>(OnRoundAnnounceMatchStart);
         RegisterEventHandler<EventStartHalftime>(OnStartHalftime);
         RegisterEventHandler<EventSwitchTeam>(OnSwitchTeam);
+        RegisterEventHandler<EventBombPlanted>(OnEventBombPlanted);
+
         
         AddCommand("ct", "Switch team to CT", OnCTCommand);
         AddCommand("t", "Switch team to T", OnTCommand);
@@ -161,19 +163,21 @@ public class BasicFaceitServer : BasePlugin
         player.ChangeTeam(pSlot.Team);
         pSlot.ConnectionStatus = PlayerConnectedState.PlayerConnected;
         
-        _gameRules = _helper.GetGameRules();
-        if (_gameRules is null) return HookResult.Continue;
-
-        if (_gameRules.GamePaused) {
-            Server.PrintToChatAll("Ойынға 10 секундтан кейин старт бериледи");
-            AddTimer(10.0f, () => {Server.ExecuteCommand("mp_unpause_match;");});
-        }
-        
-        AddTimer(5.0f, () => {player.PrintToCenter("Пышақ роунды алдынан разминка");});
+        // _gameRules = _helper.GetGameRules();
+        // if (_gameRules is null) return HookResult.Continue;
+        //
+        // if (_gameRules.GamePaused) {
+        //     Server.PrintToChatAll("Ойынға 10 секундтан кейин старт бериледи");
+        //     AddTimer(10.0f, () => {Server.ExecuteCommand("mp_unpause_match;");});
+        // }
         
         if (States.MatchLive) return HookResult.Continue;
         if (States.PostKnifeWarmup) return HookResult.Continue;
-        if (States.PreKnifeWarmup) return HookResult.Continue;
+        if (States.PreKnifeWarmup)
+        {
+            AddTimer(5.0f, () => {player.PrintToCenter("Пышақ роунды алдынан разминка");});
+            return HookResult.Continue;
+        }
         if (States.KnifeRound)
         {
             _helper.RemovePlayerWeapons(player);
@@ -185,6 +189,8 @@ public class BasicFaceitServer : BasePlugin
         
         States.PreKnifeWarmup = true;
         
+        AddTimer(5.0f, () => {player.PrintToCenter("Пышақ роунды алдынан разминка");});
+
         Server.ExecuteCommand($"mp_warmup_start; mp_warmuptime {Config.PreWarmupTime};");
         
         player.PrintToChat(_helper.GetColoredText("Пышақ роунды алдынан разминка!!!"));
@@ -346,6 +352,24 @@ public class BasicFaceitServer : BasePlugin
         return HookResult.Continue;
     }
     
+    private HookResult OnEventBombPlanted(EventBombPlanted @event, GameEventInfo info)
+    {
+        _logger.LogInformation($"[{@event.EventName}]: Start");
+
+        info.DontBroadcast = true;
+
+        var players = _helper.GetPlayers();
+        foreach (var player in players)
+        {
+            Server.NextFrame(() =>
+            {
+                player.PrintToCenterAlert("Бомба жайластырылды. Жарылыўына 40 секунд қалды");
+            });
+        }
+
+        return HookResult.Continue;
+    }
+
     private void OnCTCommand(CCSPlayerController? player, CommandInfo command)
     {
         _logger.LogInformation($"On command execute: !ct - Start");
