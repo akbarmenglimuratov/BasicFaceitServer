@@ -26,17 +26,11 @@ public class Cabin(int id, string name, bool isActive, string[] ipAddresses)
     [JsonPropertyName("ip_addresses")] public string[] IpAddresses { get; set; } = ipAddresses;
 }
 
-public class LiveTeam(int id, int cabinId, string defaultTeam)
+public class LiveTeam(int teamId, int cabinId, string defaultTeam)
 {
-    [JsonPropertyName("id")] public int Id { get; set; } = id;
-    [JsonPropertyName("cabin_id")] public int CabinId { get; set; } = cabinId;
-    [JsonPropertyName("default_team")] public string DefaultTeam { get; set; } = defaultTeam;
-}
-
-public class LiveGameTeams
-{
-    [JsonPropertyName("team_1")] public LiveTeam Team1 { get; set; } = new(1, 1, "CT");
-    [JsonPropertyName("team_2")] public LiveTeam Team2 { get; set; } = new(2, 2, "T");
+    [JsonPropertyName("team_id")] public int TeamId { get; init; } = teamId;
+    [JsonPropertyName("cabin_id")] public int CabinId { get; init; } = cabinId;
+    [JsonPropertyName("default_team")] public string DefaultTeam { get; init; } = defaultTeam;
 }
 
 public class MyConfigs
@@ -46,10 +40,16 @@ public class MyConfigs
         new(1, "TeamLiquid"),
         new(2, "NaVi")
     ];
+
     [JsonPropertyName("cabins")] public Cabin[] Cabins { get; set; } = [
         new Cabin(1, "VIP1", true, [IPAddress.Any.ToString(), IPAddress.Any.ToString()])
     ];
-    [JsonPropertyName("live_games")] public LiveGameTeams LiveGames { get; set; } = new();
+
+    [JsonPropertyName("live_game")] public LiveTeam[] LiveGame { get; init; } = [
+        new(1, 1, "CT"),
+        new(2, 2, "T")
+    ];
+
     [JsonPropertyName("pre_warmup_time")] public int PreWarmupTime { get; set; } = 420;
     [JsonPropertyName("post_warmup_time")] public int PostWarmupTime { get; set; } = 60;
     [JsonPropertyName("min_player_to_start")] public int MinPlayerToStart { get; set; } = 10;

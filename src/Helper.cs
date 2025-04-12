@@ -69,18 +69,23 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
         var configs = game.Config;
         var playerIp = player.IpAddress?.Split(":")[0];
 
-        LiveTeam[] liveTeams = [configs.LiveGames.Team1, configs.LiveGames.Team2];
+        if (string.IsNullOrEmpty(playerIp))
+            return CsTeam.Spectator;
 
-        var cabinId = configs.Cabins.First(c =>
-            c.IsActive
-            && c.IpAddresses.Contains(playerIp)
-        ).Id;
+        var cabin = configs.Cabins.FirstOrDefault(c => c.IsActive && c.IpAddresses.Contains(playerIp));
+        if (cabin == null)
+            return CsTeam.Spectator;
 
-        var teamName = liveTeams.FirstOrDefault(t => t.CabinId == cabinId)?.DefaultTeam;
+        var liveTeam = configs.LiveGame.FirstOrDefault(t => t.CabinId == cabin.Id);
+        if (liveTeam == null)
+            return CsTeam.Spectator;
 
-        if (teamName == null) return CsTeam.Spectator;
-
-        return teamName == "CT" ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
+        return liveTeam.DefaultTeam switch
+        {
+            "CT" => CsTeam.CounterTerrorist,
+            "T" => CsTeam.Terrorist,
+            _ => CsTeam.Spectator
+        };
     }
 
     public void SetTeamDataFromConfigs()
@@ -88,14 +93,18 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
         logger.LogInformation("[Helper][SetTeamDataFromConfigs] - Set team data (names)");
         var configs = game.Config;
 
-        var team1 = configs.Teams.First(t => t.Id == configs.LiveGames.Team1.Id);
-        var team2 = configs.Teams.First(t => t.Id == configs.LiveGames.Team2.Id);
-        
+        var firstLive = configs.LiveGame.First(t => t.DefaultTeam == "CT");
+        var secondLive = configs.LiveGame.First(t => t.DefaultTeam == "T");
+
+        var team1 = configs.Teams.First(t => t.Id == firstLive.TeamId);
+        var team2 = configs.Teams.First(t => t.Id == secondLive.TeamId);
+
         game.States.Teams.Team1 = new TeamData(team1.Id, team1.Name);
         game.States.Teams.Team2 = new TeamData(team2.Id, team2.Name);
-        Console.WriteLine($"Team 1: {team1.Name}");
-        Console.WriteLine($"Team 2: {team2.Name}");
-        Console.WriteLine($"OnConfigParsed: Team1 - {team1.Name} vs Team2 - {team2.Name}");
+
+        logger.LogInformation($"[Helper][SetTeamDataFromConfigs] - Team1 - {team1.Name}");
+        logger.LogInformation($"[Helper][SetTeamDataFromConfigs] - Team2 - {team2.Name}");
+
         Server.ExecuteCommand($"mp_teamname_1 {team1.Name}");
         Server.ExecuteCommand($"mp_teamname_2 {team2.Name}");
     }
@@ -129,6 +138,7 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
         Server.PrintToChatAll($"HasMatchStarted: {gameRules.HasMatchStarted}");
         Server.PrintToChatAll($"SwitchingTeamsAtRoundReset: {gameRules.SwitchingTeamsAtRoundReset}");
         Server.PrintToChatAll($"TTeamIntroVariant: {gameRules.TTeamIntroVariant }");
+        Server.PrintToChatAll($"CTTeamIntroVariant: {gameRules.CTTeamIntroVariant }");
         Server.PrintToChatAll($"PlayedTeamIntroVO: {gameRules.PlayedTeamIntroVO }");
         Server.PrintToChatAll($"TeamIntroPeriod: {gameRules.TeamIntroPeriod }");
         Server.PrintToChatAll($"TeamIntroPeriodEnd: {gameRules.TeamIntroPeriodEnd }");
@@ -160,7 +170,7 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
         var playerIp = playerIpAddress.Split(":")[0];
 
         var isParticipant = configs.Cabins.Any(c =>
-            (c.Id == configs.LiveGames.Team1.CabinId || c.Id == configs.LiveGames.Team2.CabinId)
+            configs.LiveGame.Any(l => c.Id == l.CabinId)
             && c.IpAddresses.Contains(playerIp)
         );
         logger.LogInformation($"[Helper][CheckIpInParticipantsList] - The participant - {isParticipant}");

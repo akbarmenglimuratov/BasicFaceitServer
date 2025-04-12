@@ -32,7 +32,7 @@ public class BasicFaceitServer : BasePlugin
     {
         _logger = logger;
         _helper = new Helper(this, logger);
-        _configManager = new ConfigManager(logger);
+        _configManager = new ConfigManager(this, logger);
     }
     
     public override void Load(bool hotReload)
@@ -230,7 +230,7 @@ public class BasicFaceitServer : BasePlugin
         if (_gameRules is null) return HookResult.Continue;
         
         if (States.KnifeRound) {
-            _logger.LogInformation($"[{@event.EventName}]: Knife round started. Skip intro and leave only knife");
+            _logger.LogInformation($"[{@event.EventName}]: Knife round started. Skip team intro");
             _gameRules.CTTeamIntroVariant = -1;
             _gameRules.TTeamIntroVariant = -1;
             
@@ -238,7 +238,7 @@ public class BasicFaceitServer : BasePlugin
                 _helper.RemovePlayerWeapons(player);
 
             Server.PrintToChatAll(_helper.GetColoredText(("Пышақ роунды басланды")));
-        } else if (States.MatchLive && players.Count < Config.MinPlayerToStart) {
+        } else if (States.MatchLive && players.Count >= Config.MinPlayerToStart) {
             _logger.LogInformation($"[{@event.EventName}]: Players ({players.Count}) count is below 10. Pause the match");
             Server.ExecuteCommand("mp_pause_match;");
         }

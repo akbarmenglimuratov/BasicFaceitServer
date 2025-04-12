@@ -3,7 +3,7 @@ using Microsoft.Extensions.Logging;
 
 namespace BasicFaceitServer;
 
-public class ConfigManager(ILogger<BasicFaceitServer> logger)
+public class ConfigManager(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
 {
     private const string ConfigPath = "configs.json";
 
@@ -43,19 +43,18 @@ public class ConfigManager(ILogger<BasicFaceitServer> logger)
 
     public void ValidateConfigs()
     {
-        if (Config.Cabins is null || Config.Cabins.Length == 0) {
+        if (game.Config.Cabins is null || Config.Cabins.Length == 0)
             throw new Exception("[ConfigManager]: Cabins are null or empty");
-        }
         logger.LogInformation("[ConfigManager]: Cabins are loaded");
-        
-        if (Config.LiveGames is null) {
-            throw new Exception("[ConfigManager]: LiveGames are null or empty");
-        }
+
+        if (game.Config.Cabins.Any(cabin => cabin.IpAddresses.Length == 0))
+            throw new Exception("[ConfigManager]: Cabin[i] ip_addresses is null or empty");
+        logger.LogInformation("[ConfigManager]: Ip addresses are loaded");
+
+        if (game.Config.LiveGame is not { Length: 2 })
+            throw new Exception("[ConfigManager]: Live game must have exactly two teams.");
         logger.LogInformation("[ConfigManager]: Live match is loaded");
 
-        if (Config.Cabins.Any(cabin => cabin.IpAddresses.Length == 0)) {
-            throw new Exception("[Server] Cabin[i] ip_addresses is null or empty");
-        }
-        logger.LogInformation("[ConfigManager]: Ip addresses are loaded");
+        logger.LogInformation("[ConfigManager]: Config validation passed");
     }
 }
