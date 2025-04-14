@@ -12,29 +12,34 @@ public class ConfigManager(BasicFaceitServer game, ILogger<BasicFaceitServer> lo
     public MyConfigs GetConfig(string moduleDirectory)
     {
         var cfgFullPath = Path.Combine(moduleDirectory, ConfigPath);
-        try {
-            if (!File.Exists(cfgFullPath)) {
+        try
+        {
+            if (!File.Exists(cfgFullPath))
+            {
                 logger.LogInformation("[ConfigManager]: Config file does not exists, saving defaults.");
-                
+
                 Config = new MyConfigs();
                 File.WriteAllText(cfgFullPath, JsonSerializer.Serialize(
                     Config,
-                     new JsonSerializerOptions { WriteIndented = true }
+                    new JsonSerializerOptions { WriteIndented = true }
                 ));
-                
+
                 return new MyConfigs();
             }
 
             var json = File.ReadAllText(cfgFullPath);
             var tmpConfig = JsonSerializer.Deserialize<MyConfigs>(json);
-            if (tmpConfig == null) {
+            if (tmpConfig == null)
+            {
                 logger.LogInformation("[ConfigManager]: Failed to parse config, using defaults.");
                 return new MyConfigs();
             }
 
             logger.LogInformation("[ConfigManager]: Processed the config file, now using it");
             return tmpConfig;
-        } catch (Exception ex){
+        }
+        catch (Exception ex)
+        {
             logger.LogInformation($"[ConfigManager]: Exception reading config: {ex.Message}");
             logger.LogInformation("[ConfigManager]: Using defaults...");
             return new MyConfigs();

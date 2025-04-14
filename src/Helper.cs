@@ -15,7 +15,7 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
             { "{default}", 1 },
             { "{white}", 1 },
             { "{darkred}", 2 },
-            { "{purple}", 3},
+            { "{purple}", 3 },
             { "{green}", 4 },
             { "{lightgreen}", 5 },
             { "{slimegreen}", 6 },
@@ -45,13 +45,13 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
         // Non-breaking space - a little hack to get all colors to show
         return $"\u200B{replaced}";
     }
-    
-    public List<CCSPlayerController> GetPlayers(CsTeam? includeTeam = null) 
+
+    public List<CCSPlayerController> GetPlayers(CsTeam? includeTeam = null)
     {
         logger.LogInformation("[Helper][GetPlayers] - Get players (CT, T)");
         var playerList = Utilities
             .FindAllEntitiesByDesignerName<CCSPlayerController>("cs_player_controller")
-            .Where(player =>  
+            .Where(player =>
                 player.IsValid
                 && (player is { IsBot: false, IsHLTV: false })
                 && (includeTeam == null || player.Team == includeTeam)
@@ -123,10 +123,10 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
     {
         var gameRulesEntities = Utilities
             .FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules");
-        
+
         var gameRules = gameRulesEntities.First().GameRules;
         if (gameRules is null) return;
-        
+
         Server.PrintToChatAll($"WarmupPeriod: {gameRules.WarmupPeriod}");
         Server.PrintToChatAll($"WarmupPeriodEnd: {gameRules.WarmupPeriodEnd}");
         Server.PrintToChatAll($"GamePhase: {gameRules.GamePhase}");
@@ -137,15 +137,15 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
         Server.PrintToChatAll($"GameRestart: {gameRules.GameRestart}");
         Server.PrintToChatAll($"HasMatchStarted: {gameRules.HasMatchStarted}");
         Server.PrintToChatAll($"SwitchingTeamsAtRoundReset: {gameRules.SwitchingTeamsAtRoundReset}");
-        Server.PrintToChatAll($"TTeamIntroVariant: {gameRules.TTeamIntroVariant }");
-        Server.PrintToChatAll($"CTTeamIntroVariant: {gameRules.CTTeamIntroVariant }");
-        Server.PrintToChatAll($"PlayedTeamIntroVO: {gameRules.PlayedTeamIntroVO }");
-        Server.PrintToChatAll($"TeamIntroPeriod: {gameRules.TeamIntroPeriod }");
-        Server.PrintToChatAll($"TeamIntroPeriodEnd: {gameRules.TeamIntroPeriodEnd }");
-        Server.PrintToChatAll($"MatchEndCount: {gameRules.MatchEndCount }");
-        Server.PrintToChatAll($"RoundStartRoundNumber: {gameRules.RoundStartRoundNumber  }");
-        Server.PrintToChatAll($"RoundStartTime: {gameRules.RoundStartTime  }");
-        Server.PrintToChatAll($"ForceTeamChangeSilent: {gameRules.ForceTeamChangeSilent   }");
+        Server.PrintToChatAll($"TTeamIntroVariant: {gameRules.TTeamIntroVariant}");
+        Server.PrintToChatAll($"CTTeamIntroVariant: {gameRules.CTTeamIntroVariant}");
+        Server.PrintToChatAll($"PlayedTeamIntroVO: {gameRules.PlayedTeamIntroVO}");
+        Server.PrintToChatAll($"TeamIntroPeriod: {gameRules.TeamIntroPeriod}");
+        Server.PrintToChatAll($"TeamIntroPeriodEnd: {gameRules.TeamIntroPeriodEnd}");
+        Server.PrintToChatAll($"MatchEndCount: {gameRules.MatchEndCount}");
+        Server.PrintToChatAll($"RoundStartRoundNumber: {gameRules.RoundStartRoundNumber}");
+        Server.PrintToChatAll($"RoundStartTime: {gameRules.RoundStartTime}");
+        Server.PrintToChatAll($"ForceTeamChangeSilent: {gameRules.ForceTeamChangeSilent}");
         Server.PrintToChatAll($"RoundEndTimerTime: {gameRules.RoundEndTimerTime}");
         Server.PrintToChatAll($"FreezeTime: {gameRules.FreezeTime}");
         Server.PrintToChatAll($"SwapTeamsOnRestart: {gameRules.SwapTeamsOnRestart}");
@@ -162,11 +162,13 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
 
     public bool CheckIpInParticipantsList(string playerIpAddress)
     {
-        logger.LogInformation("[Helper][CheckIpInParticipantsList] - Check if player in participants list - {ipAddress}", playerIpAddress);
+        logger.LogInformation(
+            "[Helper][CheckIpInParticipantsList] - Check if player in participants list - {ipAddress}",
+            playerIpAddress);
         if (playerIpAddress == "") return false;
 
         var configs = game.Config;
-        
+
         var playerIp = playerIpAddress.Split(":")[0];
 
         var isParticipant = configs.Cabins.Any(c =>
@@ -180,18 +182,18 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
     public void RemovePlayerWeapons(CCSPlayerController player)
     {
         logger.LogInformation("[Helper][RemovePlayerWeapons] - Remove player weapon and give only knife");
-        player.RemoveWeapons();
 
-        var knifeDesignName = player.Team == CsTeam.CounterTerrorist 
+        player.RemoveWeapons();
+        var knifeDesignName = player.Team == CsTeam.CounterTerrorist
             ? "weapon_knife"
             : "weapon_knife_t";
 
         player.GiveNamedItem(knifeDesignName);
         player.GiveNamedItem("item_kevlar");
-            
+
         var playerMoney = player.InGameMoneyServices;
         if (playerMoney is null) return;
-        
+
         playerMoney.Account = 0;
         Utilities.SetStateChanged(player, "CCSPlayerController_InGameMoneyServices", "m_iAccount");
     }
