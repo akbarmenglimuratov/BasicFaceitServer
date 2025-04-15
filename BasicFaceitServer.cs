@@ -14,11 +14,11 @@ public class BasicFaceitServer : BasePlugin
     public override string ModuleAuthor => "Akbar Menglimuratov";
     public override string ModuleDescription => "Faceit server";
 
-    private readonly ILogger<BasicFaceitServer> logger;
+    private readonly ILogger<BasicFaceitServer> _logger;
 
     public State States = new();
 
-    public MyConfigs Config { get; set; } = new();
+    public MyConfigs Config { get; private set; } = new();
 
     private CCSGameRules? _gameRules;
 
@@ -28,14 +28,14 @@ public class BasicFaceitServer : BasePlugin
 
     public BasicFaceitServer(ILogger<BasicFaceitServer> l)
     {
-        logger = l;
+        _logger = l;
         _helper = new Helper(this, l);
         _configManager = new ConfigManager(this, l);
     }
 
     public override void Load(bool hotReload)
     {
-        logger.LogInformation("[Load] Start loading configs from config file");
+        _logger.LogInformation("[Load] Start loading configs from config file");
         Config = _configManager.GetConfig(ModuleDirectory);
 
         _configManager.ValidateConfigs();
@@ -70,7 +70,7 @@ public class BasicFaceitServer : BasePlugin
     {
         if (!isHibernating) return;
 
-        logger.LogInformation($"[OnServerHibernationUpdate]: Hibernating. Reset game state");
+        _logger.LogInformation($"[OnServerHibernationUpdate]: Hibernating. Reset game state");
         States = new State();
     }
 
@@ -81,26 +81,26 @@ public class BasicFaceitServer : BasePlugin
 
     private HookResult OnPlayerConnectFull(EventPlayerConnectFull @event, GameEventInfo info)
     {
-        logger.LogInformation($"[{@event.EventName}]: Start");
+        _logger.LogInformation($"[{@event.EventName}]: Start");
 
         var player = @event.Userid;
         if (player is null || !player.IsValid || player.IsBot || player.IpAddress is null)
         {
-            logger.LogInformation($"[{@event.EventName}]: {player?.IpAddress} - Client is null or bot");
+            _logger.LogInformation($"[{@event.EventName}]: {player?.IpAddress} - Client is null or bot");
             return HookResult.Continue;
         }
 
         if (!_helper.CheckIpInParticipantsList(player.IpAddress))
         {
-            logger.LogInformation($"[{@event.EventName}]: Player is not participant - {player.IpAddress}");
-            logger.LogInformation($"[{@event.EventName}]: Player team {CsTeam.Spectator}");
+            _logger.LogInformation($"[{@event.EventName}]: Player is not participant - {player.IpAddress}");
+            _logger.LogInformation($"[{@event.EventName}]: Player team {CsTeam.Spectator}");
             _helper.PlayerJoinTeam(player, CsTeam.Spectator);
             return HookResult.Handled;
         }
 
         if (player.Team is CsTeam.Spectator or CsTeam.None)
         {
-            logger.LogInformation($"[{@event.EventName}]: Player connecting first time. Assign team");
+            _logger.LogInformation($"[{@event.EventName}]: Player connecting first time. Assign team");
             var playerTeam = _helper.GetPlayerTeam(player);
             _helper.PlayerJoinTeam(player, playerTeam);
         }
@@ -110,16 +110,15 @@ public class BasicFaceitServer : BasePlugin
 
         if (States.KnifeRound)
         {
-            _helper.RemovePlayerWeapons(player);
-            return HookResult.Continue;
+            _helper.PreparePlayerForKnifeRound(player);
+            return HookResult.Handled;
         }
 
-        Console.WriteLine("Pre-knife:" + States.PreKnifeWarmup);
         var allPlayers = Utilities.GetPlayers();
         if (!States.PreKnifeWarmup && allPlayers.Count == 1)
         {
             States.PreKnifeWarmup = true;
-            logger.LogInformation($"[{@event.EventName}]: First player connected - {player.IpAddress}");
+            _logger.LogInformation($"[{@event.EventName}]: First player connected - {player.IpAddress}");
             Server.ExecuteCommand($"mp_warmup_start; mp_warmuptime {Config.PreWarmupTime};");
         }
 
@@ -133,29 +132,29 @@ public class BasicFaceitServer : BasePlugin
             return HookResult.Continue;
         }
 
-        logger.LogInformation($"[{@event.EventName}]: Finish");
+        _logger.LogInformation($"[{@event.EventName}]: Finish");
         return HookResult.Continue;
     }
 
     private HookResult OnPlayerDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
     {
-        logger.LogInformation($"[{@event.EventName}]: Start");
+        _logger.LogInformation($"[{@event.EventName}]: Start");
 
         var player = @event.Userid;
         if (player is null || !player.IsValid || player.IsBot)
         {
-            logger.LogInformation($"[{@event.EventName}]: Player is null or bot - {player?.IpAddress}");
+            _logger.LogInformation($"[{@event.EventName}]: Player is null or bot - {player?.IpAddress}");
             return HookResult.Continue;
         }
 
-        logger.LogInformation($"[{@event.EventName}]: Player disconnected- {player?.IpAddress}");
-        logger.LogInformation($"[{@event.EventName}]: Finish");
+        _logger.LogInformation($"[{@event.EventName}]: Player disconnected- {player.IpAddress}");
+        _logger.LogInformation($"[{@event.EventName}]: Finish");
         return HookResult.Continue;
     }
 
     private HookResult OnRoundStart(EventRoundStart @event, GameEventInfo info)
     {
-        logger.LogInformation($"[{@event.EventName}]: Start");
+        _logger.LogInformation($"[{@event.EventName}]: Start");
 
         if (States.MatchLive) return HookResult.Continue;
 
@@ -166,30 +165,30 @@ public class BasicFaceitServer : BasePlugin
 
         if (States.KnifeRound)
         {
-            logger.LogInformation($"[{@event.EventName}]: Knife round started. Skip team intro");
+            _logger.LogInformation($"[{@event.EventName}]: Knife round started. Skip team intro");
             // _gameRules.CTTeamIntroVariant = -1;
             // _gameRules.TTeamIntroVariant = -1;
             _gameRules.TeamIntroPeriod = false;
 
-            // foreach (var player in players)
-            //     _helper.RemovePlayerWeapons(player);
+            foreach (var player in players)
+                _helper.PreparePlayerForKnifeRound(player);
 
             Server.PrintToChatAll(_helper.GetColoredText(("Пышақ роунды басланды")));
         }
         else if (States.MatchLive && players.Count >= Config.MinPlayerToStart)
         {
-            logger.LogInformation(
+            _logger.LogInformation(
                 $"[{@event.EventName}]: Players ({players.Count}) count is below 10. Pause the match");
             Server.ExecuteCommand("mp_pause_match;");
         }
 
-        logger.LogInformation($"[{@event.EventName}]: Finish");
+        _logger.LogInformation($"[{@event.EventName}]: Finish");
         return HookResult.Continue;
     }
 
     private HookResult OnRoundEnd(EventRoundEnd @event, GameEventInfo info)
     {
-        logger.LogInformation($"[{@event.EventName}]: Start");
+        _logger.LogInformation($"[{@event.EventName}]: Start");
         if (States.MatchLive) return HookResult.Continue;
 
         if (States.KnifeRound)
@@ -201,14 +200,14 @@ public class BasicFaceitServer : BasePlugin
                 ? CsTeam.CounterTerrorist
                 : CsTeam.Terrorist;
 
-            logger.LogInformation($"[{@event.EventName}]: Define knife round winner: {States.KnifeRoundWinner}");
-            logger.LogInformation($"[{@event.EventName}]: Start short warmup period");
+            _logger.LogInformation($"[{@event.EventName}]: Define knife round winner: {States.KnifeRoundWinner}");
+            _logger.LogInformation($"[{@event.EventName}]: Start short warmup period");
 
             AddTimer(3.0f,
                 () => { Server.ExecuteCommand($"mp_warmuptime {Config.PostWarmupTime}; mp_warmup_start;"); });
         }
 
-        logger.LogInformation($"[{@event.EventName}]: Finish");
+        _logger.LogInformation($"[{@event.EventName}]: Finish");
         return HookResult.Continue;
     }
 
@@ -216,7 +215,7 @@ public class BasicFaceitServer : BasePlugin
     {
         if (!States.PostKnifeWarmup) return HookResult.Continue;
 
-        logger.LogInformation($"[{@event.EventName}]: Post knife warmup period started");
+        _logger.LogInformation($"[{@event.EventName}]: Post knife warmup period started");
 
         var teamName1 = States.Teams.Team1.Name;
         var teamName2 = States.Teams.Team2.Name;
@@ -224,14 +223,14 @@ public class BasicFaceitServer : BasePlugin
             ? teamName1
             : teamName2;
 
-        logger.LogInformation($"[{@event.EventName}]: Team name 1 - {teamName1}");
-        logger.LogInformation($"[{@event.EventName}]: Team name 2 - {teamName2}");
-        logger.LogInformation($"[{@event.EventName}]: Winner team name - {winnerTeamName}");
+        _logger.LogInformation($"[{@event.EventName}]: Team name 1 - {teamName1}");
+        _logger.LogInformation($"[{@event.EventName}]: Team name 2 - {teamName2}");
+        _logger.LogInformation($"[{@event.EventName}]: Winner team name - {winnerTeamName}");
 
         Server.PrintToChatAll(_helper.GetColoredText($"{{green}}{winnerTeamName} {{white}}тəрепти таңлаң"));
         Server.PrintToChatAll(_helper.GetColoredText("!ct ямаса !t командасын жазың"));
 
-        logger.LogInformation($"[{@event.EventName}]: Finish");
+        _logger.LogInformation($"[{@event.EventName}]: Finish");
         return HookResult.Continue;
     }
 
@@ -241,28 +240,25 @@ public class BasicFaceitServer : BasePlugin
 
         if (States.PreKnifeWarmup)
         {
-            logger.LogInformation($"[{@event.EventName}]: Pre-knife warmup period ended");
+            _logger.LogInformation($"[{@event.EventName}]: Pre-knife warmup period ended");
 
             States.PreKnifeWarmup = false;
             States.KnifeRound = true;
 
-            Server.ExecuteCommand("exec knife.cfg");
-
             if (players.Count < Config.MinPlayerToStart)
             {
-                logger.LogInformation(
+                _logger.LogInformation(
                     $"[{@event.EventName}]: Players ({players.Count}) count is below {Config.MinPlayerToStart}");
-                logger.LogInformation($"[{@event.EventName}]: Pausing match before knife round");
+                _logger.LogInformation($"[{@event.EventName}]: Pausing match before knife round");
                 Server.ExecuteCommand("mp_pause_match");
             }
-
-            Server.ExecuteCommand("mp_restartgame 1");
+            
             return HookResult.Handled;
         }
 
         if (!States.PostKnifeWarmup) return HookResult.Continue;
 
-        logger.LogInformation($"[{@event.EventName}]: Post knife warmup period ended");
+        _logger.LogInformation($"[{@event.EventName}]: Post knife warmup period ended");
         States.PostKnifeWarmup = false;
         States.MatchLive = true;
 
@@ -271,13 +267,13 @@ public class BasicFaceitServer : BasePlugin
 
     private HookResult OnRoundAnnounceMatchStart(EventRoundAnnounceMatchStart @event, GameEventInfo info)
     {
-        logger.LogInformation($"[{@event.EventName}]: Start");
+        _logger.LogInformation($"[{@event.EventName}]: Start");
         if (!States.MatchLive) return HookResult.Continue;
 
-        logger.LogInformation($"[{@event.EventName}]: Print Good luck message");
+        _logger.LogInformation($"[{@event.EventName}]: Print Good luck message");
         Server.PrintToChatAll(_helper.GetColoredText("Ҳаммеге аўмет!!!"));
 
-        logger.LogInformation($"[{@event.EventName}]: End");
+        _logger.LogInformation($"[{@event.EventName}]: End");
         return HookResult.Continue;
     }
 
@@ -300,7 +296,7 @@ public class BasicFaceitServer : BasePlugin
 
     private HookResult OnEventBombPlanted(EventBombPlanted @event, GameEventInfo info)
     {
-        logger.LogInformation($"[{@event.EventName}]: Start");
+        _logger.LogInformation($"[{@event.EventName}]: Start");
 
         info.DontBroadcast = true;
 
@@ -321,14 +317,14 @@ public class BasicFaceitServer : BasePlugin
 
     private void OnCTCommand(CCSPlayerController? player, CommandInfo command)
     {
-        logger.LogInformation($"On command execute: !ct - Start");
+        _logger.LogInformation($"On command execute: !ct - Start");
         if (States.MatchLive) return;
 
         if (player == null || !player.IsValid) return;
 
         if (player.Team != States.KnifeRoundWinner || player.Team == CsTeam.Spectator) return;
 
-        logger.LogInformation($"On command execute: !ct - Player team: {player.Team}");
+        _logger.LogInformation($"On command execute: !ct - Player team: {player.Team}");
 
         _gameRules = _helper.GetGameRules();
         if (_gameRules is null) return;
@@ -339,22 +335,22 @@ public class BasicFaceitServer : BasePlugin
         States.MatchLive = true;
         States.PostKnifeWarmup = false;
 
-        logger.LogInformation($"On command execute: !ct - Exec gamemode_competitive, restart game (1 sec)");
+        _logger.LogInformation($"On command execute: !ct - Exec gamemode_competitive, restart game (1 sec)");
         Server.ExecuteCommand("exec gamemode_competitive; mp_restartgame 1;");
 
-        logger.LogInformation($"On command execute: !ct - End");
+        _logger.LogInformation($"On command execute: !ct - End");
     }
 
     private void OnTCommand(CCSPlayerController? player, CommandInfo command)
     {
-        logger.LogInformation($"On command execute: !t - Start");
+        _logger.LogInformation($"On command execute: !t - Start");
         if (States.MatchLive) return;
 
         if (player == null || !player.IsValid) return;
 
         if (player.Team != States.KnifeRoundWinner || player.Team == CsTeam.Spectator) return;
 
-        logger.LogInformation($"On command execute: !t - Player team: {player.Team}");
+        _logger.LogInformation($"On command execute: !t - Player team: {player.Team}");
 
         _gameRules = _helper.GetGameRules();
         if (_gameRules is null) return;
@@ -365,10 +361,10 @@ public class BasicFaceitServer : BasePlugin
         States.MatchLive = true;
         States.PostKnifeWarmup = false;
 
-        logger.LogInformation($"On command execute: !t - Exec gamemode_competitive, restart game (1 sec)");
+        _logger.LogInformation($"On command execute: !t - Exec gamemode_competitive, restart game (1 sec)");
         Server.ExecuteCommand("exec gamemode_competitive; mp_restartgame 1;");
 
-        logger.LogInformation($"On command execute: !t - End");
+        _logger.LogInformation($"On command execute: !t - End");
     }
 
     private void OnPrintStateCommand(CCSPlayerController? player, CommandInfo command)

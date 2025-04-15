@@ -179,25 +179,6 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
         return isParticipant;
     }
 
-    public void RemovePlayerWeapons(CCSPlayerController player)
-    {
-        logger.LogInformation("[Helper][RemovePlayerWeapons] - Remove player weapon and give only knife");
-
-        player.RemoveWeapons();
-        var knifeDesignName = player.Team == CsTeam.CounterTerrorist
-            ? "weapon_knife"
-            : "weapon_knife_t";
-
-        player.GiveNamedItem(knifeDesignName);
-        player.GiveNamedItem("item_kevlar");
-
-        var playerMoney = player.InGameMoneyServices;
-        if (playerMoney is null) return;
-
-        playerMoney.Account = 0;
-        Utilities.SetStateChanged(player, "CCSPlayerController_InGameMoneyServices", "m_iAccount");
-    }
-
     public void PlayerJoinTeam(CCSPlayerController player, CsTeam playerTeam)
     {
         logger.LogInformation($"[Helper][PlayerJoinTeam]: Player team - {playerTeam.ToString()}");
@@ -207,5 +188,76 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
             player.Respawn();
             game.AddTimer(0.1f, () => { player.ChangeTeam(playerTeam); });
         });
+    }
+
+    public void PreparePlayerForKnifeRound(CCSPlayerController player)
+    {
+        RemovePlayerWeapon(player);
+        SetPlayerAccountToZero(player);
+        GivePlayerArmor(player);
+        GivePlayerKnife(player);
+    }
+
+    private void DropWeapon(CCSPlayerController player, string weaponName)
+    {
+        logger.LogInformation("Weapon design name: " + weaponName);
+        var weaponServices = player.PlayerPawn?.Value?.WeaponServices;
+
+        if (weaponServices == null)
+            return;
+
+        var matchedWeapon = weaponServices.MyWeapons
+            .FirstOrDefault(w => w?.IsValid == true && w.Value != null && w.Value.DesignerName == weaponName);
+
+        try
+        {
+            if (matchedWeapon?.IsValid != true) return;
+            weaponServices.ActiveWeapon.Raw = matchedWeapon.Raw;
+
+            var weaponEntity = weaponServices.ActiveWeapon.Value?.As<CBaseEntity>();
+            if (weaponEntity == null || !weaponEntity.IsValid)
+                return;
+
+            player.DropActiveWeapon();
+            Server.NextFrame(() => { weaponEntity.AddEntityIOEvent("Kill", weaponEntity, null, "", 0.1f); });
+        }
+        catch (Exception ex)
+        {
+            logger.LogError("Error while Refreshing Weapon via className: {ex}", ex.Message);
+        }
+    }
+
+    private void RemovePlayerWeapon(CCSPlayerController player)
+    {
+        if (!player.IsValid || player.PlayerPawn.Value == null) return;
+
+        DropWeapon(player, "weapon_c4");
+        player.RemoveWeapons();
+    }
+
+    private void SetPlayerAccountToZero(CCSPlayerController player)
+    {
+        logger.LogInformation("[Helper][SetPlayerAccountToZero] - Set player money to zero");
+        var playerMoney = player.InGameMoneyServices;
+        if (playerMoney is null) return;
+
+        playerMoney.Account = 0;
+        Utilities.SetStateChanged(player, "CCSPlayerController_InGameMoneyServices", "m_iAccount");
+    }
+
+    private void GivePlayerArmor(CCSPlayerController player)
+    {
+        logger.LogInformation("[Helper][GivePlayerArmor] - Give player armor");
+        player.GiveNamedItem("item_kevlar");
+    }
+
+    private void GivePlayerKnife(CCSPlayerController player)
+    {
+        logger.LogInformation("[Helper][GivePlayerKnife] - Give player knife");
+        var knifeDesignName = player.Team == CsTeam.CounterTerrorist
+            ? "weapon_knife"
+            : "weapon_knife_t";
+
+        player.GiveNamedItem(knifeDesignName);
     }
 }
