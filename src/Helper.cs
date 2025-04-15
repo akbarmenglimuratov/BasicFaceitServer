@@ -197,4 +197,15 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
         playerMoney.Account = 0;
         Utilities.SetStateChanged(player, "CCSPlayerController_InGameMoneyServices", "m_iAccount");
     }
+
+    public void PlayerJoinTeam(CCSPlayerController player, CsTeam playerTeam)
+    {
+        logger.LogInformation($"[Helper][PlayerJoinTeam]: Player team - {playerTeam.ToString()}");
+
+        game.AddTimer(0.1f, () =>
+        {
+            player.Respawn();
+            game.AddTimer(0.1f, () => { player.ChangeTeam(playerTeam); });
+        });
+    }
 }

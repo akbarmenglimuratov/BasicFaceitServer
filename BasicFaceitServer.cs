@@ -70,7 +70,7 @@ public class BasicFaceitServer : BasePlugin
     {
         if (!isHibernating) return;
 
-        logger.LogInformation($"[OnServerHibernationUpdate]: Hibernating. Set pre knife warmup");
+        logger.LogInformation($"[OnServerHibernationUpdate]: Hibernating. Reset game state");
         States = new State();
     }
 
@@ -94,16 +94,15 @@ public class BasicFaceitServer : BasePlugin
         {
             logger.LogInformation($"[{@event.EventName}]: Player is not participant - {player.IpAddress}");
             logger.LogInformation($"[{@event.EventName}]: Player team {CsTeam.Spectator}");
-            player.ChangeTeam(CsTeam.Spectator);
+            _helper.PlayerJoinTeam(player, CsTeam.Spectator);
             return HookResult.Handled;
         }
 
-        if (player.Team == CsTeam.None)
+        if (player.Team is CsTeam.Spectator or CsTeam.None)
         {
-            logger.LogInformation($"[{@event.EventName}]: Player team is none. Get team - {player.IpAddress}");
+            logger.LogInformation($"[{@event.EventName}]: Player connecting first time. Assign team");
             var playerTeam = _helper.GetPlayerTeam(player);
-            logger.LogInformation($"[{@event.EventName}]: Player team - {playerTeam.ToString()}");
-            player.ChangeTeam(playerTeam);
+            _helper.PlayerJoinTeam(player, playerTeam);
         }
 
         if (States.MatchLive || States.PostKnifeWarmup)
@@ -115,26 +114,23 @@ public class BasicFaceitServer : BasePlugin
             return HookResult.Continue;
         }
 
-        player.PrintToChat(_helper.GetColoredText("Пышақ роунды алдынан разминка!!!"));
-        player.PrintToChat(_helper.GetColoredText("РАЗМИНКА!!!"));
-        player.PrintToChat(_helper.GetColoredText("РАЗМИНКА!!!"));
-        player.PrintToChat(_helper.GetColoredText("РАЗМИНКА!!!"));
-        AddTimer(5.0f, () => player.PrintToCenter("Пышақ роунды алдынан разминка"));
-
-        var allPlayers = _helper.GetPlayers();
-
+        Console.WriteLine("Pre-knife:" + States.PreKnifeWarmup);
+        var allPlayers = Utilities.GetPlayers();
         if (!States.PreKnifeWarmup && allPlayers.Count == 1)
         {
             States.PreKnifeWarmup = true;
             logger.LogInformation($"[{@event.EventName}]: First player connected - {player.IpAddress}");
             Server.ExecuteCommand($"mp_warmup_start; mp_warmuptime {Config.PreWarmupTime};");
-            return HookResult.Continue; // Don't respawn first player
         }
 
-        if (States.PreKnifeWarmup && allPlayers.Count > 1)
+        if (States.PreKnifeWarmup)
         {
-            player.PlayerPawn.Value!.TeamNum = (byte)player.Team;
-            player.Respawn();
+            player.PrintToChat(_helper.GetColoredText("Пышақ роунды алдынан разминка!!!"));
+            player.PrintToChat(_helper.GetColoredText("РАЗМИНКА!!!"));
+            player.PrintToChat(_helper.GetColoredText("РАЗМИНКА!!!"));
+            player.PrintToChat(_helper.GetColoredText("РАЗМИНКА!!!"));
+            AddTimer(5.0f, () => player.PrintToCenter("Пышақ роунды алдынан разминка"));
+            return HookResult.Continue;
         }
 
         logger.LogInformation($"[{@event.EventName}]: Finish");
@@ -175,8 +171,8 @@ public class BasicFaceitServer : BasePlugin
             // _gameRules.TTeamIntroVariant = -1;
             _gameRules.TeamIntroPeriod = false;
 
-            foreach (var player in players)
-                _helper.RemovePlayerWeapons(player);
+            // foreach (var player in players)
+            //     _helper.RemovePlayerWeapons(player);
 
             Server.PrintToChatAll(_helper.GetColoredText(("Пышақ роунды басланды")));
         }
@@ -245,24 +241,30 @@ public class BasicFaceitServer : BasePlugin
 
         if (States.PreKnifeWarmup)
         {
-            logger.LogInformation($"[{@event.EventName}]: Pre knife warmup period ended");
+            logger.LogInformation($"[{@event.EventName}]: Pre-knife warmup period ended");
 
             States.PreKnifeWarmup = false;
             States.KnifeRound = true;
 
-            if (players.Count >= Config.MinPlayerToStart) return HookResult.Continue;
+            Server.ExecuteCommand("exec knife.cfg");
 
-            logger.LogInformation(
-                $"[{@event.EventName}]: Players ({players.Count}) count is below {Config.MinPlayerToStart}");
-            logger.LogInformation($"[{@event.EventName}]: Pause match before knife round");
-            Server.ExecuteCommand($"mp_pause_match");
+            if (players.Count < Config.MinPlayerToStart)
+            {
+                logger.LogInformation(
+                    $"[{@event.EventName}]: Players ({players.Count}) count is below {Config.MinPlayerToStart}");
+                logger.LogInformation($"[{@event.EventName}]: Pausing match before knife round");
+                Server.ExecuteCommand("mp_pause_match");
+            }
+
+            Server.ExecuteCommand("mp_restartgame 1");
+            return HookResult.Handled;
         }
-        else if (States.PostKnifeWarmup)
-        {
-            logger.LogInformation($"[{@event.EventName}]: Post knife warmup period ended");
-            States.PostKnifeWarmup = false;
-            States.MatchLive = true;
-        }
+
+        if (!States.PostKnifeWarmup) return HookResult.Continue;
+
+        logger.LogInformation($"[{@event.EventName}]: Post knife warmup period ended");
+        States.PostKnifeWarmup = false;
+        States.MatchLive = true;
 
         return HookResult.Continue;
     }
