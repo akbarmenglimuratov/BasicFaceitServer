@@ -6,6 +6,7 @@ namespace BasicFaceitServer;
 public class TournamentData
 {
     [JsonPropertyName("id")] public int Id { get; set; } = 3;
+    [JsonPropertyName("host")] public string Host { get; set; } = "KingsGaming";
     [JsonPropertyName("name")] public string Name { get; set; } = "Kings Championship";
     [JsonPropertyName("dateFrom")] public string TournamentDateFrom { get; set; } = "15-04-2025 10:00";
     [JsonPropertyName("dateTo")] public string TournamentDateTo { get; set; } = "16-04-2025 17:00";

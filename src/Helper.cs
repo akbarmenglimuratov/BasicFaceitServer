@@ -32,7 +32,7 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
             // No more colors are mapped to CS2
         };
 
-        message = $"[{{green}}KINGS{{white}}]: {message}";
+        message = $"[{{green}}{game.Config.Tournament.Host}{{white}}]: {message}";
         const string pattern = "{(\\w+)}";
         var replaced = Regex.Replace(message, pattern, match =>
         {
@@ -104,6 +104,7 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
 
         logger.LogInformation($"[Helper][SetTeamDataFromConfigs] - Team1 - {team1.Name}");
         logger.LogInformation($"[Helper][SetTeamDataFromConfigs] - Team2 - {team2.Name}");
+        SetTeamName(game.States.Teams.Team1, game.States.Teams.Team2);
     }
 
     public CCSGameRules? GetGameRules()
@@ -182,6 +183,7 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
 
         game.AddTimer(0.1f, () =>
         {
+            player.ChangeTeam(CsTeam.Spectator);
             player.Respawn();
             game.AddTimer(0.1f, () => { player.ChangeTeam(playerTeam); });
         });
@@ -260,18 +262,10 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
 
     public void SetTeamName(TeamData ctTeam, TeamData tTeam)
     {
-        // var teams = Utilities.FindAllEntitiesByDesignerName<CCSTeam>("cs_team_manager");
-        // foreach (var team in teams)
-        // {
-        //     team.Teamname = (CsTeam) team.TeamNum switch
-        //     {
-        //         CsTeam.CounterTerrorist => ctTeam.Name,
-        //         CsTeam.Terrorist => tTeam.Name,
-        //         _ => team.Teamname
-        //     };
-        //     Utilities.SetStateChanged(team, "CTeam", "m_szTeamname");
-        // }
-
-        // TODO: it's not working correctly. Fix it later
+        Server.NextFrame(() =>
+        {
+            Server.ExecuteCommand($"mp_teamname_1 {ctTeam.Name}");
+            Server.ExecuteCommand($"mp_teamname_2 {tTeam.Name}");
+        });
     }
 }

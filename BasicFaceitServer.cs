@@ -58,7 +58,6 @@ public class BasicFaceitServer : BasePlugin
         RegisterEventHandler<EventStartHalftime>(OnStartHalftime);
         RegisterEventHandler<EventSwitchTeam>(OnSwitchTeam);
         RegisterEventHandler<EventBombPlanted>(OnEventBombPlanted);
-        RegisterEventHandler<EventTeamIntroStart>(OnEventTeamIntroStart, HookMode.Pre);
         RegisterEventHandler<EventPlayerTeam>(OnEventPlayerTeam);
         VirtualFunctions.CBaseEntity_TakeDamageOldFunc.Hook(OnTakeDamage, HookMode.Pre);
 
@@ -169,14 +168,11 @@ public class BasicFaceitServer : BasePlugin
         if (States.KnifeRound)
         {
             _logger.LogInformation($"[{@event.EventName}]: Knife round started. Skip team intro");
-            // _gameRules.CTTeamIntroVariant = -1;
-            // _gameRules.TTeamIntroVariant = -1;
-            // _gameRules.TeamIntroPeriod = false;
 
             foreach (var player in players)
                 _helper.PreparePlayerForKnifeRound(player);
 
-            Server.PrintToChatAll(_helper.GetColoredText(("Пышақ роунды басланды")));
+            Server.PrintToChatAll(_helper.GetColoredText(("Пышақ роунды!!!")));
         }
         else if (States.MatchLive && players.Count >= Config.MinPlayerToStart)
         {
@@ -219,26 +215,28 @@ public class BasicFaceitServer : BasePlugin
         if (States.PreKnifeWarmup)
         {
             Server.ExecuteCommand("mp_team_intro_time 0");
+            return HookResult.Continue;
         }
 
-        if (!States.PostKnifeWarmup) return HookResult.Continue;
+        if (States.PostKnifeWarmup)
+        {
+            _logger.LogInformation($"[{@event.EventName}]: Post knife warmup period started");
+            Server.ExecuteCommand("mp_team_intro_time 6.5");
+            var teamName1 = States.Teams.Team1.Name;
+            var teamName2 = States.Teams.Team2.Name;
+            var winnerTeamName = States.KnifeRoundWinner == CsTeam.CounterTerrorist
+                ? teamName1
+                : teamName2;
 
-        _logger.LogInformation($"[{@event.EventName}]: Post knife warmup period started");
+            _logger.LogInformation($"[{@event.EventName}]: Team name 1 - {teamName1}");
+            _logger.LogInformation($"[{@event.EventName}]: Team name 2 - {teamName2}");
+            _logger.LogInformation($"[{@event.EventName}]: Winner team name - {winnerTeamName}");
 
-        var teamName1 = States.Teams.Team1.Name;
-        var teamName2 = States.Teams.Team2.Name;
-        var winnerTeamName = States.KnifeRoundWinner == CsTeam.CounterTerrorist
-            ? teamName1
-            : teamName2;
+            Server.PrintToChatAll(_helper.GetColoredText($"{{green}}{winnerTeamName} {{white}}тəрепти таңлаң"));
+            Server.PrintToChatAll(_helper.GetColoredText("!ct ямаса !t командасын жазың"));
 
-        _logger.LogInformation($"[{@event.EventName}]: Team name 1 - {teamName1}");
-        _logger.LogInformation($"[{@event.EventName}]: Team name 2 - {teamName2}");
-        _logger.LogInformation($"[{@event.EventName}]: Winner team name - {winnerTeamName}");
-
-        Server.PrintToChatAll(_helper.GetColoredText($"{{green}}{winnerTeamName} {{white}}тəрепти таңлаң"));
-        Server.PrintToChatAll(_helper.GetColoredText("!ct ямаса !t командасын жазың"));
-
-        _logger.LogInformation($"[{@event.EventName}]: Finish");
+            _logger.LogInformation($"[{@event.EventName}]: Finish");
+        }
         return HookResult.Continue;
     }
 
@@ -276,11 +274,26 @@ public class BasicFaceitServer : BasePlugin
     private HookResult OnRoundAnnounceMatchStart(EventRoundAnnounceMatchStart @event, GameEventInfo info)
     {
         _logger.LogInformation($"[{@event.EventName}]: Start");
-        if (!States.MatchLive) return HookResult.Continue;
+        
+        if (States.KnifeRound)
+        {
+            _logger.LogInformation($"[{@event.EventName}]: Print knife round start message to each player");
+            
+            info.DontBroadcast = true;
+            var players = _helper.GetPlayers();
+            foreach (var player in players)
+            {
+                player.PrintToCenter("Пышақ роунды басланды");
+            }
 
-        _logger.LogInformation($"[{@event.EventName}]: Print Good luck message");
-        Server.PrintToChatAll(_helper.GetColoredText("Ҳаммеге аўмет!!!"));
+            return HookResult.Changed;
+        }
 
+        if (States.MatchLive)
+        {
+            _logger.LogInformation($"[{@event.EventName}]: Print Good luck message");
+            Server.PrintToChatAll(_helper.GetColoredText("Ҳаммеге аўмет!!!"));
+        }
         _logger.LogInformation($"[{@event.EventName}]: End");
         return HookResult.Continue;
     }
@@ -312,18 +325,14 @@ public class BasicFaceitServer : BasePlugin
         return HookResult.Continue;
     }
 
-    private HookResult OnEventTeamIntroStart(EventTeamIntroStart @event, GameEventInfo info)
-    {
-        info.DontBroadcast = true;
-        return States.KnifeRound ? HookResult.Handled : HookResult.Continue;
-    }
-
     private HookResult OnEventPlayerTeam(EventPlayerTeam @event, GameEventInfo info)
     {
         if (@event.Team == (byte)CsTeam.Spectator)
         {
             info.DontBroadcast = true;
+            _logger.LogInformation($"[{@event.EventName}]: Player team is spectator");
         }
+        _logger.LogInformation($"[{@event.EventName}]: Player team is not spectator");
 
         return HookResult.Continue;
     }
