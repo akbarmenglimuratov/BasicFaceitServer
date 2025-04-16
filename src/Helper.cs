@@ -104,9 +104,6 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
 
         logger.LogInformation($"[Helper][SetTeamDataFromConfigs] - Team1 - {team1.Name}");
         logger.LogInformation($"[Helper][SetTeamDataFromConfigs] - Team2 - {team2.Name}");
-
-        Server.ExecuteCommand($"mp_teamname_1 {team1.Name}");
-        Server.ExecuteCommand($"mp_teamname_2 {team2.Name}");
     }
 
     public CCSGameRules? GetGameRules()
@@ -259,5 +256,22 @@ public class Helper(BasicFaceitServer game, ILogger<BasicFaceitServer> logger)
             : "weapon_knife_t";
 
         player.GiveNamedItem(knifeDesignName);
+    }
+
+    public void SetTeamName(TeamData ctTeam, TeamData tTeam)
+    {
+        // var teams = Utilities.FindAllEntitiesByDesignerName<CCSTeam>("cs_team_manager");
+        // foreach (var team in teams)
+        // {
+        //     team.Teamname = (CsTeam) team.TeamNum switch
+        //     {
+        //         CsTeam.CounterTerrorist => ctTeam.Name,
+        //         CsTeam.Terrorist => tTeam.Name,
+        //         _ => team.Teamname
+        //     };
+        //     Utilities.SetStateChanged(team, "CTeam", "m_szTeamname");
+        // }
+
+        // TODO: it's not working correctly. Fix it later
     }
 }

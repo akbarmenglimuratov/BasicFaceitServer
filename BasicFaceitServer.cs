@@ -4,6 +4,8 @@ using Microsoft.Extensions.Logging;
 using CounterStrikeSharp.API.Modules.Utils;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Entities.Constants;
+using CounterStrikeSharp.API.Modules.Memory;
+using CounterStrikeSharp.API.Modules.Memory.DynamicFunctions;
 
 namespace BasicFaceitServer;
 
@@ -57,7 +59,8 @@ public class BasicFaceitServer : BasePlugin
         RegisterEventHandler<EventSwitchTeam>(OnSwitchTeam);
         RegisterEventHandler<EventBombPlanted>(OnEventBombPlanted);
         RegisterEventHandler<EventTeamIntroStart>(OnEventTeamIntroStart, HookMode.Pre);
-
+        RegisterEventHandler<EventPlayerTeam>(OnEventPlayerTeam);
+        VirtualFunctions.CBaseEntity_TakeDamageOldFunc.Hook(OnTakeDamage, HookMode.Pre);
 
         AddCommand("ct", "Switch team to CT", OnCTCommand);
         AddCommand("t", "Switch team to T", OnTCommand);
@@ -168,7 +171,7 @@ public class BasicFaceitServer : BasePlugin
             _logger.LogInformation($"[{@event.EventName}]: Knife round started. Skip team intro");
             // _gameRules.CTTeamIntroVariant = -1;
             // _gameRules.TTeamIntroVariant = -1;
-            _gameRules.TeamIntroPeriod = false;
+            // _gameRules.TeamIntroPeriod = false;
 
             foreach (var player in players)
                 _helper.PreparePlayerForKnifeRound(player);
@@ -213,6 +216,11 @@ public class BasicFaceitServer : BasePlugin
 
     private HookResult OnRoundAnnounceWarmup(EventRoundAnnounceWarmup @event, GameEventInfo info)
     {
+        if (States.PreKnifeWarmup)
+        {
+            Server.ExecuteCommand("mp_team_intro_time 0");
+        }
+
         if (!States.PostKnifeWarmup) return HookResult.Continue;
 
         _logger.LogInformation($"[{@event.EventName}]: Post knife warmup period started");
@@ -236,31 +244,31 @@ public class BasicFaceitServer : BasePlugin
 
     private HookResult OnWarmupEnd(EventWarmupEnd @event, GameEventInfo info)
     {
-        var players = _helper.GetPlayers();
-
         if (States.PreKnifeWarmup)
         {
             _logger.LogInformation($"[{@event.EventName}]: Pre-knife warmup period ended");
 
+            var players = _helper.GetPlayers();
+
             States.PreKnifeWarmup = false;
             States.KnifeRound = true;
 
-            if (players.Count < Config.MinPlayerToStart)
-            {
-                _logger.LogInformation(
-                    $"[{@event.EventName}]: Players ({players.Count}) count is below {Config.MinPlayerToStart}");
-                _logger.LogInformation($"[{@event.EventName}]: Pausing match before knife round");
-                Server.ExecuteCommand("mp_pause_match");
-            }
-            
-            return HookResult.Handled;
+            if (players.Count >= Config.MinPlayerToStart) return HookResult.Continue;
+
+            _logger.LogInformation(
+                $"[{@event.EventName}]: Players ({players.Count}) count is below {Config.MinPlayerToStart}");
+            _logger.LogInformation($"[{@event.EventName}]: Pausing match before knife round");
+            Server.ExecuteCommand("mp_pause_match");
+
+            return HookResult.Continue;
         }
 
-        if (!States.PostKnifeWarmup) return HookResult.Continue;
-
-        _logger.LogInformation($"[{@event.EventName}]: Post knife warmup period ended");
-        States.PostKnifeWarmup = false;
-        States.MatchLive = true;
+        if (States.PostKnifeWarmup)
+        {
+            _logger.LogInformation($"[{@event.EventName}]: Post knife warmup period ended");
+            States.PostKnifeWarmup = false;
+            States.MatchLive = true;
+        }
 
         return HookResult.Continue;
     }
@@ -279,18 +287,13 @@ public class BasicFaceitServer : BasePlugin
 
     private HookResult OnStartHalftime(EventStartHalftime @event, GameEventInfo info)
     {
-        Server.ExecuteCommand($"mp_teamname_1 {States.Teams.Team2.Name}");
-        Server.ExecuteCommand($"mp_teamname_2 {States.Teams.Team1.Name}");
+        _helper.SetTeamName(States.Teams.Team2, States.Teams.Team1);
         return HookResult.Continue;
     }
 
     private HookResult OnSwitchTeam(EventSwitchTeam @event, GameEventInfo info)
     {
-        _gameRules = _helper.GetGameRules();
-        if (_gameRules is null) return HookResult.Continue;
-
-        Server.ExecuteCommand($"mp_teamname_1 {States.Teams.Team2.Name}");
-        Server.ExecuteCommand($"mp_teamname_2 {States.Teams.Team1.Name}");
+        _helper.SetTeamName(States.Teams.Team2, States.Teams.Team1);
         return HookResult.Continue;
     }
 
@@ -313,6 +316,47 @@ public class BasicFaceitServer : BasePlugin
     {
         info.DontBroadcast = true;
         return States.KnifeRound ? HookResult.Handled : HookResult.Continue;
+    }
+
+    private HookResult OnEventPlayerTeam(EventPlayerTeam @event, GameEventInfo info)
+    {
+        if (@event.Team == (byte)CsTeam.Spectator)
+        {
+            info.DontBroadcast = true;
+        }
+
+        return HookResult.Continue;
+    }
+
+    private HookResult OnTakeDamage(DynamicHook hook)
+    {
+        try
+        {
+            var victim = hook.GetParam<CEntityInstance>(0);
+            var damageInfo = hook.GetParam<CTakeDamageInfo>(1);
+
+            if (damageInfo.Attacker.Value == null) return HookResult.Continue;
+
+            var inflicter = damageInfo.Inflictor.Value?.DesignerName ?? "";
+            var attackPlayer = new CCSPlayerPawn(damageInfo.Attacker.Value.Handle);
+            var playerTakenDmg = new CCSPlayerController(victim.Handle);
+
+            if (attackPlayer.TeamNum != playerTakenDmg.TeamNum || !"player".Equals(victim.DesignerName))
+                return HookResult.Continue;
+
+            string[] enableDmgInflicter =
+            [
+                "inferno", "hegrenade_projectile", "flashbang_projectile", "smokegrenade_projectile",
+                "decoy_projectile", "planted_c4"
+            ];
+            return enableDmgInflicter.Contains(inflicter) ? HookResult.Continue : HookResult.Handled;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError("{@error}", ex);
+        }
+
+        return HookResult.Continue;
     }
 
     private void OnCTCommand(CCSPlayerController? player, CommandInfo command)
@@ -399,6 +443,7 @@ public class BasicFaceitServer : BasePlugin
             _ => RoundEndReason.Unknown
         };
         Console.WriteLine(cmdArg);
-        _gameRules.TerminateRound(1.0f, reason);
+        VirtualFunctions.TerminateRoundFunc.Invoke(_gameRules.Handle, reason, 3.0f, 0, 0);
+        // _gameRules.TerminateRound(1.0f, reason);
     }
 }
